@@ -1,27 +1,38 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import { List, Map } from 'immutable';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 import Frame from 'react-frame-component';
-import { ScrollSyncPane } from '../ScrollSync';
 import registry from '../../lib/registry';
 import { resolveWidget } from '../Widgets';
 import { selectTemplateName, selectInferedField } from '../../reducers/collections';
 import { INFERABLE_FIELDS } from '../../constants/fieldInference';
+import PreviewContent from './PreviewContent.js';
+import PreviewHOC from '../Widgets/PreviewHOC';
 import Preview from './Preview';
 import styles from './PreviewPane.css';
 
 export default class PreviewPane extends React.Component {
 
   getWidget = (field, value, props) => {
-    const { fieldsMetaData, getAsset } = props;
+    const { fieldsMetaData, getAsset, entry } = props;
     const widget = resolveWidget(field.get('widget'));
-    return React.createElement(widget.preview, {
-      field,
-      key: field.get('name'),
-      value: value && Map.isMap(value) ? value.get(field.get('name')) : value,
-      metadata: fieldsMetaData && fieldsMetaData.get(field.get('name')),
-      getAsset,
-    });
+
+    /**
+     * Use an HOC to provide conditional updates for all previews.
+     */
+    return !widget.preview ? null : (
+      <PreviewHOC
+        previewComponent={widget.preview}
+        key={field.get('name')}
+        field={field}
+        getAsset={getAsset}
+        value={value && Map.isMap(value) ? value.get(field.get('name')) : value}
+        metadata={fieldsMetaData && fieldsMetaData.get(field.get('name'))}
+        entry={entry}
+        fieldsMetaData={fieldsMetaData}
+      />
+    );
   };
 
   inferedFields = {};
@@ -37,10 +48,23 @@ export default class PreviewPane extends React.Component {
     if (authorField) this.inferedFields[authorField] = INFERABLE_FIELDS.author;
   }
 
-  widgetFor = (name) => {
-    const { fields, entry } = this.props;
-    const field = fields.find(f => f.get('name') === name);
-    let value = entry.getIn(['data', field.get('name')]);
+  /**
+   * Returns the widget component for a named field, and makes recursive calls
+   * to retrieve components for nested and deeply nested fields, which occur in
+   * object and list type fields. Used internally to retrieve widgets, and also
+   * exposed for use in custom preview templates.
+   */
+  widgetFor = (name, fields = this.props.fields, values = this.props.entry.get('data')) => {
+    // We retrieve the field by name so that this function can also be used in
+    // custom preview templates, where the field object can't be passed in.
+    let field = fields && fields.find(f => f.get('name') === name);
+    let value = values && values.get(field.get('name'));
+    let nestedFields = field.get('fields');
+
+    if (nestedFields) {
+      field = field.set('fields', this.getNestedWidgets(nestedFields, value));
+    }
+
     const labelledWidgets = ['string', 'text', 'number'];
     if (Object.keys(this.inferedFields).indexOf(name) !== -1) {
       value = this.inferedFields[name].defaultPreview(value);
@@ -51,6 +75,31 @@ export default class PreviewPane extends React.Component {
     return value ? this.getWidget(field, value, this.props) : null;
   };
 
+  /**
+   * Retrieves widgets for nested fields (children of object/list fields)
+   */
+  getNestedWidgets = (fields, values) => {
+    // Fields nested within a list field will be paired with a List of value Maps.
+    if (List.isList(values)) {
+      return values.map(value => this.widgetsForNestedFields(fields, value));
+    }
+    // Fields nested within an object field will be paired with a single Map of values.
+    return this.widgetsForNestedFields(fields, values);
+  };
+
+  /**
+   * Use widgetFor as a mapping function for recursive widget retrieval
+   */
+  widgetsForNestedFields = (fields, values) => {
+    return fields.map(field => this.widgetFor(field.get('name'), fields, values));
+  };
+
+  /**
+   * This function exists entirely to expose nested widgets for object and list
+   * fields to custom preview templates.
+   *
+   * TODO: see if widgetFor can now provide this functionality for preview templates
+   */
   widgetsFor = (name) => {
     const { fields, entry } = this.props;
     const field = fields.find(f => f.get('name') === name);
@@ -77,7 +126,9 @@ export default class PreviewPane extends React.Component {
       return null;
     }
 
-    const component = registry.getPreviewTemplate(selectTemplateName(collection, entry.get('slug'))) || Preview;
+    const previewComponent =
+      registry.getPreviewTemplate(selectTemplateName(collection, entry.get('slug'))) ||
+      Preview;
 
     this.inferFields();
 
@@ -88,23 +139,11 @@ export default class PreviewPane extends React.Component {
     };
 
     const styleEls = registry.getPreviewStyles()
-       .map(style => <link href={style} type="text/css" rel="stylesheet" />);
+       .map((style, i) => <link key={i} href={style} type="text/css" rel="stylesheet" />);
 
     if (!collection) {
-      return <Frame className={styles.frame} head={styleEl} />;
+      return <Frame className={styles.frame} head={styleEls} />;
     }
-
-    // We need to create a lightweight component here so that we can
-    // access the context within the Frame. This allows us to attach
-    // the ScrollSyncPane to the body.
-    const PreviewContent = (props, { document: iFrameDocument }) => (
-      <ScrollSyncPane attachTo={iFrameDocument.scrollingElement}>
-        {React.createElement(component, previewProps)}
-      </ScrollSyncPane>);
-
-    PreviewContent.contextTypes = {
-      document: PropTypes.any,
-    };
 
     return (<Frame
       className={styles.frame}
@@ -115,7 +154,7 @@ export default class PreviewPane extends React.Component {
   <head><base target="_blank"/></head>
   <body><div></div></body>
 </html>`}
-    ><PreviewContent /></Frame>);
+    ><PreviewContent {...{ previewComponent, previewProps }}/></Frame>);
   }
 }
 

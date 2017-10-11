@@ -1,10 +1,11 @@
+import { attempt, isError } from 'lodash';
 import TestRepoBackend from "./test-repo/implementation";
 import GitHubBackend from "./github/implementation";
-import NetlifyAuthBackend from "./netlify-auth/implementation";
+import GitGatewayBackend from "./git-gateway/implementation";
 import { resolveFormat } from "../formats/formats";
 import { selectListMethod, selectEntrySlug, selectEntryPath, selectAllowNewEntries, selectFolderEntryExtension } from "../reducers/collections";
 import { createEntry } from "../valueObjects/Entry";
-import slug from 'slug';
+import { sanitizeSlug } from "../lib/urlHelper";
 
 class LocalStorageAuthStore {
   storageKey = "netlify-cms-user";
@@ -25,8 +26,23 @@ class LocalStorageAuthStore {
 
 const slugFormatter = (template = "{{slug}}", entryData) => {
   const date = new Date();
-  const identifier = entryData.get("title", entryData.get("path"));
-  return template.replace(/\{\{([^\}]+)\}\}/g, (_, field) => {
+
+  const getIdentifier = (entryData) => {
+    const validIdentifierFields = ["title", "path"];
+    const identifiers = validIdentifierFields.map((field) =>
+      entryData.find((_, key) => key.toLowerCase().trim() === field)
+    );
+
+    const identifier = identifiers.find(ident => ident !== undefined);
+
+    if (identifier === undefined) {
+      throw new Error("Collection must have a field name that is a valid entry identifier");
+    }
+
+    return identifier;
+  };
+
+  const slug = template.replace(/\{\{([^\}]+)\}\}/g, (_, field) => {
     switch (field) {
       case "year":
         return date.getFullYear();
@@ -35,16 +51,24 @@ const slugFormatter = (template = "{{slug}}", entryData) => {
       case "day":
         return (`0${ date.getDate() }`).slice(-2);
       case "slug":
-        return slug(identifier.trim(), {lower: true});
+        return getIdentifier(entryData).trim();
       default:
-        return slug(entryData.get(field, "").trim(), {lower: true});
+        return entryData.get(field, "").trim();
     }
-  });
+  })
+  // Convert slug to lower-case
+  .toLocaleLowerCase()
+
+  // Replace periods and spaces with dashes.
+  .replace(/[.\s]/g, '-');
+
+  return sanitizeSlug(slug);
 };
 
 class Backend {
-  constructor(implementation, authStore = null) {
+  constructor(implementation, backendName, authStore = null) {
     this.implementation = implementation;
+    this.backendName = backendName;
     this.authStore = authStore;
     if (this.implementation === null) {
       throw new Error("Cannot instantiate a Backend with no implementation");
@@ -54,8 +78,13 @@ class Backend {
   currentUser() {
     if (this.user) { return this.user; }
     const stored = this.authStore && this.authStore.retrieve();
-    if (stored) {
-      return Promise.resolve(this.implementation.setUser(stored)).then(() => stored);
+    if (stored && stored.backendName === this.backendName) {
+      return Promise.resolve(this.implementation.restoreUser(stored)).then((user) => {
+        const newUser = {...user, backendName: this.backendName};
+        // return confirmed/rehydrated user object instead of stored
+        this.authStore.store(newUser);
+        return newUser;
+      });
     }
     return Promise.resolve(null);
   }
@@ -66,17 +95,18 @@ class Backend {
 
   authenticate(credentials) {
     return this.implementation.authenticate(credentials).then((user) => {
-      if (this.authStore) { this.authStore.store(user); }
-      return user;
+      const newUser = {...user, backendName: this.backendName};
+      if (this.authStore) { this.authStore.store(newUser); }
+      return newUser;
     });
   }
 
   logout() {
-    if (this.authStore) {
-      this.authStore.logout();
-    } else {
-      throw new Error("User isn't authenticated.");
-    }
+    return Promise.resolve(this.implementation.logout()).then(() => {
+      if (this.authStore) {
+        this.authStore.logout();
+      }
+    });
   }
 
   getToken = () => this.implementation.getToken();
@@ -84,18 +114,25 @@ class Backend {
   listEntries(collection) {
     const listMethod = this.implementation[selectListMethod(collection)];
     const extension = selectFolderEntryExtension(collection);
+    const collectionFilter = collection.get('filter');
     return listMethod.call(this.implementation, collection, extension)
       .then(loadedEntries => (
         loadedEntries.map(loadedEntry => createEntry(
           collection.get("name"),
           selectEntrySlug(collection, loadedEntry.file.path),
           loadedEntry.file.path,
-          { raw: loadedEntry.data, label: loadedEntry.file.label }
+          { raw: loadedEntry.data || '', label: loadedEntry.file.label }
         ))
       ))
       .then(entries => (
         {
           entries: entries.map(this.entryWithFormat(collection)),
+        }
+      ))
+      // If this collection has a "filter" property, filter entries accordingly
+      .then(loadedCollection => (
+        {
+          entries: collectionFilter ? this.filterEntries(loadedCollection, collectionFilter) : loadedCollection.entries
         }
       ));
   }
@@ -114,8 +151,10 @@ class Backend {
   entryWithFormat(collectionOrEntity) {
     return (entry) => {
       const format = resolveFormat(collectionOrEntity, entry);
-      if (entry && entry.raw) {
-        return Object.assign(entry, { data: format && format.fromFile(entry.raw) });
+      if (entry && entry.raw !== undefined) {
+        const data = (format && attempt(format.fromFile.bind(null, entry.raw))) || {};
+        if (isError(data)) console.error(data);
+        return Object.assign(entry, { data: isError(data) ? {} : data });
       }
       return format.fromFile(entry);
     };
@@ -205,6 +244,12 @@ class Backend {
     });
   }
 
+  deleteEntry(config, collection, slug) {
+    const path = selectEntryPath(collection, slug);
+    const commitMessage = `Delete ${ collection.get('label') } “${ slug }”`;
+    return this.implementation.deleteFile(path, commitMessage);
+  }
+
   persistUnpublishedEntry(config, collection, entryDraft, MediaFiles) {
     return this.persistEntry(config, collection, entryDraft, MediaFiles, { unpublished: true });
   }
@@ -240,6 +285,12 @@ class Backend {
     }
     return file.get('fields').map(f => f.get('name')).toArray();
   }
+
+  filterEntries(collection, filterRule) {
+    return collection.entries.filter(entry => (
+      entry.data[filterRule.get('field')] === filterRule.get('value')
+    ));
+  }
 }
 
 export function resolveBackend(config) {
@@ -252,11 +303,11 @@ export function resolveBackend(config) {
 
   switch (name) {
     case "test-repo":
-      return new Backend(new TestRepoBackend(config), authStore);
+      return new Backend(new TestRepoBackend(config), name, authStore);
     case "github":
-      return new Backend(new GitHubBackend(config), authStore);
-    case "netlify-auth":
-      return new Backend(new NetlifyAuthBackend(config), authStore);
+      return new Backend(new GitHubBackend(config), name, authStore);
+    case "git-gateway":
+      return new Backend(new GitGatewayBackend(config), name, authStore);
     default:
       throw new Error(`Backend not found: ${ name }`);
   }

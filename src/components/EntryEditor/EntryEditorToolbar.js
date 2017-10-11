@@ -1,13 +1,17 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import { Button } from 'react-toolbox/lib/button';
 
 const EntryEditorToolbar = (
   {
     isPersisting,
     onPersist,
+    enableSave,
+    showDelete,
+    onDelete,
     onCancelEdit,
   }) => {
-  const disabled = isPersisting;
+  const disabled = !enableSave || isPersisting;
   return (
     <div>
       <Button
@@ -19,6 +23,12 @@ const EntryEditorToolbar = (
         { isPersisting ? 'Saving...' : 'Save' }
       </Button>
       {' '}
+      { showDelete
+        ? (<Button accent onClick={onDelete}>
+            Delete
+           </Button>)
+        : '' }
+      { showDelete ? ' ' : '' }
       <Button onClick={onCancelEdit}>
         Cancel
       </Button>
@@ -29,6 +39,9 @@ const EntryEditorToolbar = (
 EntryEditorToolbar.propTypes = {
   isPersisting: PropTypes.bool,
   onPersist: PropTypes.func.isRequired,
+  enableSave: PropTypes.bool.isRequired,
+  showDelete: PropTypes.bool.isRequired,
+  onDelete: PropTypes.func.isRequired,
   onCancelEdit: PropTypes.func.isRequired,
 };
 

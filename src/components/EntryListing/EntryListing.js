@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 import Waypoint from 'react-waypoint';
 import { Map } from 'immutable';
@@ -41,6 +42,9 @@ export default class EntryListing extends React.Component {
     const title = label || entry.getIn(['data', inferedFields.titleField]);
     let image = entry.getIn(['data', inferedFields.imageField]);
     image = resolvePath(image, publicFolder);
+    if(image) {
+      image = encodeURI(image);
+    }
 
     return (
       <Card
@@ -57,7 +61,7 @@ export default class EntryListing extends React.Component {
           : inferedFields.remainingFields && inferedFields.remainingFields.map(f => (
             <p key={f.get('name')} className={styles.cardList}>
               <span className={styles.cardListLabel}>{f.get('label')}:</span>{' '}
-              { entry.getIn(['data', f.get('name')], '').toString() }
+              { (entry.getIn(['data', f.get('name')]) || '').toString() }
             </p>
           ))
         }

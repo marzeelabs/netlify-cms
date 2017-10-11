@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
 import { Map } from 'immutable';
 import { resolveWidget } from '../Widgets';
 import controlStyles from '../ControlPanel/ControlPane.css';
@@ -10,14 +11,28 @@ export default class ObjectControl extends Component {
     onAddAsset: PropTypes.func.isRequired,
     onRemoveAsset: PropTypes.func.isRequired,
     getAsset: PropTypes.func.isRequired,
-    value: PropTypes.node,
+    value: PropTypes.oneOfType([
+      PropTypes.node,
+      PropTypes.object,
+      PropTypes.bool,
+    ]),
     field: PropTypes.object,
-    forID: PropTypes.string.isRequired,
+    forID: PropTypes.string,
     className: PropTypes.string,
   };
 
+  /**
+   * In case the `onChange` function is frozen by a child widget implementation,
+   * e.g. when debounced, always get the latest object value instead of usin
+   * `this.props.value` directly.
+   */
+  getObjectValue = () => this.props.value;
+
   controlFor(field) {
     const { onAddAsset, onRemoveAsset, getAsset, value, onChange } = this.props;
+    if (field.get('widget') === 'hidden') {
+      return null;
+    }
     const widget = resolveWidget(field.get('widget') || 'string');
     const fieldValue = value && Map.isMap(value) ? value.get(field.get('name')) : value;
 
@@ -30,11 +45,12 @@ export default class ObjectControl extends Component {
             field,
             value: fieldValue,
             onChange: (val, metadata) => {
-              onChange((value || Map()).set(field.get('name'), val), metadata);
+              onChange((this.getObjectValue() || Map()).set(field.get('name'), val), metadata);
             },
             onAddAsset,
             onRemoveAsset,
             getAsset,
+            forID: field.get('name'),
           })
         }
       </div>

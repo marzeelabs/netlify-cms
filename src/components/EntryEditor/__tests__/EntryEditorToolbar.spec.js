@@ -3,11 +3,25 @@ import { shallow } from 'enzyme';
 import EntryEditorToolbar from '../EntryEditorToolbar';
 
 describe('EntryEditorToolbar', () => {
-  it('should have both buttons enabled initially', () => {
+  it('should have the Save button disabled initally, and the Cancel button enabled', () => {
     const component = shallow(
       <EntryEditorToolbar
         onPersist={() => {}}
         onCancelEdit={() => {}}
+        onDelete={() => {}}
+      />
+    );
+    const tree = component.html();
+    expect(tree).toMatchSnapshot();
+  });
+
+  it('should enable the Save button', () => {
+    const component = shallow(
+      <EntryEditorToolbar
+        enableSave
+        onPersist={() => {}}
+        onCancelEdit={() => {}}
+        onDelete={() => {}}
       />
     );
     const tree = component.html();
@@ -20,6 +34,7 @@ describe('EntryEditorToolbar', () => {
         isPersisting
         onPersist={() => {}}
         onCancelEdit={() => {}}
+        onDelete={() => {}}
       />
     );
     const tree = component.html();

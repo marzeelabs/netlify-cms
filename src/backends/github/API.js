@@ -19,6 +19,15 @@ export default class API {
     return this.request("/user");
   }
 
+  hasWriteAccess() {
+    return this.request(this.repoURL)
+      .then(repo => repo.permissions.push)
+      .catch(error => {
+        console.error("Problem fetching repo data from GitHub");
+        throw error;
+      });
+  }
+
   requestHeaders(headers = {}) {
     const baseHeader = {
       "Content-Type": "application/json",
@@ -44,7 +53,8 @@ export default class API {
   }
 
   urlFor(path, options) {
-    const params = [];
+    const cacheBuster = new Date().getTime();
+    const params = [`ts=${cacheBuster}`];
     if (options.params) {
       for (const key in options.params) {
         params.push(`${ key }=${ encodeURIComponent(options.params[key]) }`);
@@ -200,7 +210,12 @@ export default class API {
       // Get PRs with a `head` of `branchName`. Note that this is a
       // substring match, so we need to check that the `head.ref` of
       // at least one of the returned objects matches `branchName`.
-      return this.request(`${ this.repoURL }/pulls?head=${ branchName }&state=open`)
+      return this.request(`${ this.repoURL }/pulls`, {
+        params: {
+          head: branchName,
+          state: 'open',
+        },
+      })
         .then(prs => prs.some(pr => pr.head.ref === branchName));
     }))
     .catch((error) => {
@@ -235,7 +250,6 @@ export default class API {
   persistFiles(entry, mediaFiles, options) {
     const uploadPromises = [];
     const files = mediaFiles.concat(entry);
-    
 
     files.forEach((file) => {
       if (file.uploaded) { return; }
@@ -255,6 +269,23 @@ export default class API {
         return this.editorialWorkflowGit(fileTree, entry, mediaFilesList, options);
       }
     });
+  }
+
+  deleteFile(path, message, options={}) {
+    const branch = options.branch || this.branch;
+    const fileURL = `${ this.repoURL }/contents/${ path }`;
+    // We need to request the file first to get the SHA
+    return this.request(fileURL, {
+      params: { ref: branch },
+      cache: "no-store",
+    }).then(({ sha }) => this.request(fileURL, {
+      method: "DELETE",
+      params: {
+        sha,
+        message,
+        branch,
+      },
+    }));
   }
 
   editorialWorkflowGit(fileTree, entry, filesList, options) {
@@ -342,10 +373,18 @@ export default class API {
 
   deleteUnpublishedEntry(collection, slug) {
     const contentKey = slug;
-    let prNumber; 
     return this.retrieveMetadata(contentKey)
     .then(metadata => this.closePR(metadata.pr, metadata.objects))
-    .then(() => this.deleteBranch(`cms/${ contentKey }`));
+    .then(() => this.deleteBranch(`cms/${ contentKey }`))
+    // If the PR doesn't exist, then this has already been deleted -
+    // deletion should be idempotent, so we can consider this a
+    // success.
+    .catch((err) => {
+      if (err.message === "Reference does not exist") {
+        return Promise.resolve();
+      }
+      return Promise.reject(err);
+    });
   }
 
   publishUnpublishedEntry(collection, slug) {
@@ -373,7 +412,7 @@ export default class API {
 
   deleteRef(type, name, sha) {
     return this.request(`${ this.repoURL }/git/refs/${ type }/${ encodeURIComponent(name) }`, {
-      method: "DELETE",
+      method: 'DELETE',
     });
   }
 

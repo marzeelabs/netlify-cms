@@ -1,8 +1,9 @@
 import React from 'react';
+import createReactClass from 'create-react-class';
 import { render } from 'react-dom';
 import { AppContainer } from 'react-hot-loader';
-import 'file?name=index.html!../example/index.html';
-import 'react-toolbox/lib/commons.scss';
+import 'file-loader?name=index.html!../example/index.html';
+import 'normalize.css';
 import Root from './root';
 import registry from './lib/registry';
 import './index.css';
@@ -25,15 +26,8 @@ render((
   </AppContainer>
 ), el);
 
-if (process.env.NODE_ENV !== 'production' && module.hot) {
-  module.hot.accept('./root', () => {
-    const NextRoot = require('./root').default; // eslint-disable-line
-    render((
-      <AppContainer>
-        <NextRoot />
-      </AppContainer>
-    ), el);
-  });
+if (module.hot) {
+  module.hot.accept('./root', () => { render(Root); });
 }
 
 const buildtInPlugins = [{
@@ -44,7 +38,7 @@ const buildtInPlugins = [{
     alt: match[1],
   },
   toBlock: data => `![${ data.alt }](${ data.image })`,
-  toPreview: data => <img src={data.image} alt={data.alt} />,
+  toPreview: (data, getAsset) => <img src={getAsset(data.image)} alt={data.alt} />,
   pattern: /^!\[([^\]]+)]\(([^)]+)\)$/,
   fields: [{
     label: 'Image',
@@ -64,7 +58,7 @@ for (const method in registry) { // eslint-disable-line
 
 if (typeof window !== 'undefined') {
   window.CMS = CMS;
-  window.createClass = window.createClass || React.createClass;
+  window.createClass = window.createClass || createReactClass;
   window.h = window.h || React.createElement;
 }
 

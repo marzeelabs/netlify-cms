@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
 import Autosuggest from 'react-autosuggest';
 import uuid from 'uuid';
 import { Map } from 'immutable';
@@ -69,7 +70,7 @@ class RelationControl extends Component {
     const collection = field.get('collection');
     const searchFields = field.get('searchFields').toJS();
     this.props.query(this.controlID, collection, searchFields, value);
-  }, 100);
+  }, 500);
 
   onSuggestionsClearRequested = () => {
     this.props.clearSearch();

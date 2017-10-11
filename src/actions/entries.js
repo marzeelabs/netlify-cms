@@ -1,9 +1,11 @@
 import { List } from 'immutable';
 import { actions as notifActions } from 'redux-notifications';
+import { serializeValues } from '../lib/serializeEntryValues';
 import { closeEntry } from './editor';
 import { currentBackend } from '../backends/backend';
 import { getIntegrationProvider } from '../integrations';
 import { getAsset, selectIntegration } from '../reducers';
+import { selectFields } from '../reducers/collections';
 import { createEntry } from '../valueObjects/Entry';
 
 const { notifSend } = notifActions;
@@ -29,6 +31,10 @@ export const DRAFT_VALIDATION_ERRORS = 'DRAFT_VALIDATION_ERRORS';
 export const ENTRY_PERSIST_REQUEST = 'ENTRY_PERSIST_REQUEST';
 export const ENTRY_PERSIST_SUCCESS = 'ENTRY_PERSIST_SUCCESS';
 export const ENTRY_PERSIST_FAILURE = 'ENTRY_PERSIST_FAILURE';
+
+export const ENTRY_DELETE_REQUEST = 'ENTRY_DELETE_REQUEST';
+export const ENTRY_DELETE_SUCCESS = 'ENTRY_DELETE_SUCCESS';
+export const ENTRY_DELETE_FAILURE = 'ENTRY_DELETE_FAILURE';
 
 /*
  * Simple Action Creators (Internal)
@@ -126,6 +132,37 @@ export function entryPersistFail(collection, entry, error) {
   };
 }
 
+export function entryDeleting(collection, slug) {
+  return {
+    type: ENTRY_DELETE_REQUEST,
+    payload: {
+      collectionName: collection.get('name'),
+      entrySlug: slug,
+    },
+  };
+}
+
+export function entryDeleted(collection, slug) {
+  return {
+    type: ENTRY_DELETE_SUCCESS,
+    payload: {
+      collectionName: collection.get('name'),
+      entrySlug: slug,
+    },
+  };
+}
+
+export function entryDeleteFail(collection, slug, error) {
+  return {
+    type: ENTRY_DELETE_FAILURE,
+    payload: {
+      collectionName: collection.get('name'),
+      entrySlug: slug,
+      error: error.toString(),
+    },
+  };
+}
+
 export function emptyDraftCreated(entry) {
   return {
     type: DRAFT_CREATE_EMPTY,
@@ -181,10 +218,11 @@ export function loadEntry(collection, slug) {
     const backend = currentBackend(state.config);
     dispatch(entryLoading(collection, slug));
     return backend.getEntry(collection, slug)
-      .then(loadedEntry => (
-        dispatch(entryLoaded(collection, loadedEntry))
-      ))
+      .then(loadedEntry => {
+        return dispatch(entryLoaded(collection, loadedEntry))
+      })
       .catch((error) => {
+        console.error(error);
         dispatch(notifSend({
           message: `Failed to load entry: ${ error.message }`,
           kind: 'danger',
@@ -229,30 +267,61 @@ export function persistEntry(collection) {
     const entryDraft = state.entryDraft;
 
     // Early return if draft contains validation errors
-    if (!entryDraft.get('fieldsErrors').isEmpty()) return;
-    
+    if (!entryDraft.get('fieldsErrors').isEmpty()) return Promise.reject();
+
     const backend = currentBackend(state.config);
     const assetProxies = entryDraft.get('mediaFiles').map(path => getAsset(state, path));
     const entry = entryDraft.get('entry');
-    dispatch(entryPersisting(collection, entry));
-    backend
-      .persistEntry(state.config, collection, entryDraft, assetProxies.toJS())
+
+    /**
+     * Serialize the values of any fields with registered serializers, and
+     * update the entry and entryDraft with the serialized values.
+     */
+    const fields = selectFields(collection, entry.get('slug'));
+    const serializedData = serializeValues(entryDraft.getIn(['entry', 'data']), fields);
+    const serializedEntry = entry.set('data', serializedData);
+    const serializedEntryDraft = entryDraft.set('entry', serializedEntry);
+    dispatch(entryPersisting(collection, serializedEntry));
+    return backend
+      .persistEntry(state.config, collection, serializedEntryDraft, assetProxies.toJS())
       .then(() => {
         dispatch(notifSend({
           message: 'Entry saved',
           kind: 'success',
           dismissAfter: 4000,
         }));
-        dispatch(entryPersisted(collection, entry));
-        dispatch(closeEntry(collection));
+        return dispatch(entryPersisted(collection, serializedEntry));
       })
       .catch((error) => {
+        console.error(error);
         dispatch(notifSend({
           message: `Failed to persist entry: ${ error }`,
           kind: 'danger',
           dismissAfter: 8000,
         }));
-        dispatch(entryPersistFail(collection, entry, error));
+        return Promise.reject(dispatch(entryPersistFail(collection, serializedEntry, error)));
       });
+  };
+}
+
+export function deleteEntry(collection, slug) {
+  return (dispatch, getState) => {
+    const state = getState();
+    const backend = currentBackend(state.config);
+
+    dispatch(entryDeleting(collection, slug));
+    return backend.deleteEntry(state.config, collection, slug)
+    .then(() => {
+      return dispatch(entryDeleted(collection, slug));
+    })
+    .catch((error) => {
+      dispatch(notifSend({
+        message: `Failed to delete entry: ${ error }`,
+        kind: 'danger',
+        dismissAfter: 8000,
+      }));
+      console.error(error);
+      return Promise.reject(dispatch(entryDeleteFail(collection, slug, error)));
+    });
   };
 }

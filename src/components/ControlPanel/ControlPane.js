@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
 import { Map, fromJS } from 'immutable';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 import { resolveWidget } from '../Widgets';
@@ -67,11 +68,11 @@ export default class ControlPane extends Component {
     return (
       <div>
         {
-          fields.map((field) => {
+          fields.map((field, i) => {
             if (isHidden(field)) {
               return null;
             }
-            return <div key={field.get('name')} className={styles.widget}>{this.controlFor(field)}</div>;
+            return <div key={i} className={styles.widget}>{this.controlFor(field)}</div>;
           })
         }
       </div>

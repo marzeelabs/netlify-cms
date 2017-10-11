@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
 import ImmutablePropTypes from "react-immutable-proptypes";
 
 const truthy = () => ({ error: false });
@@ -8,7 +9,12 @@ class ControlHOC extends Component {
   static propTypes = {
     controlComponent: PropTypes.func.isRequired,
     field: ImmutablePropTypes.map.isRequired,
-    value: PropTypes.node,
+    value: PropTypes.oneOfType([
+      PropTypes.node,
+      PropTypes.object,
+      PropTypes.string,
+      PropTypes.bool,
+    ]),
     metadata: ImmutablePropTypes.map,
     onChange: PropTypes.func.isRequired,
     onValidate: PropTypes.func.isRequired,
@@ -16,6 +22,10 @@ class ControlHOC extends Component {
     onRemoveAsset: PropTypes.func.isRequired,
     getAsset: PropTypes.func.isRequired,
   };
+
+  shouldComponentUpdate(nextProps) {
+    return this.props.value !== nextProps.value;
+  }
 
   processInnerControlRef = (wrappedControl) => {
     if (!wrappedControl) return;

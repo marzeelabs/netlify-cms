@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import previewStyle from './defaultPreviewStyle';
 
 export default function DatePreview({ value }) {
@@ -6,5 +7,5 @@ export default function DatePreview({ value }) {
 }
 
 DatePreview.propTypes = {
-  value: PropTypes.node,
+  value: PropTypes.object,
 };

@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import DateTime from 'react-datetime';
 
 export default class DateTimeControl extends React.Component {
@@ -19,5 +20,8 @@ export default class DateTimeControl extends React.Component {
 
 DateTimeControl.propTypes = {
   onChange: PropTypes.func.isRequired,
-  value: PropTypes.object, // eslint-disable-line
+  value: PropTypes.oneOfType([
+    PropTypes.object,
+    PropTypes.string,
+  ]),
 };

@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
 import classnames from 'classnames';
 import { partial, without } from 'lodash';
 import styles from './Sticky.css';
@@ -81,7 +82,9 @@ export class StickyContext extends Component {
   }
 
   handleScroll = (event) => {
-    this.updateStickies(event.target);
+    if (event.target === this.ref) {
+      this.updateStickies(this.ref);
+    }
   };
 
   render() {
@@ -164,6 +167,11 @@ export class Sticky extends Component {
     className: PropTypes.string,
 
     /**
+     * classNameActive: class to apply when Sticky is active.
+     */
+    classNameActive: PropTypes.string,
+
+    /**
      * fillContainerWidth: allows the sticky width to be dynamically set to the width of it's
      * StickyContainer when sticky (fixed positioning).
      */
@@ -201,6 +209,7 @@ export class Sticky extends Component {
             styles.sticky,
             {
               [styles.stickyActive]: state.shouldStick,
+              [props.classNameActive]: state.shouldStick,
               [styles.stickyAtBottom]: state.shouldStickAtBottom,
             },
           )}

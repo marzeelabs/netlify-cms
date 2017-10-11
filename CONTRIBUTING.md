@@ -5,7 +5,7 @@ please read the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Setup
 
-> Install yarn on your system: https://yarnpkg.com/en/docs/install
+> Install yarn on your system: [https://yarnpkg.com/en/docs/install](https://yarnpkg.com/en/docs/install)
 
 ```sh
 $ git clone https://github.com/netlify/netlify-cms
@@ -33,7 +33,7 @@ $ npm run test:watch
 $ npm run lint
 ```
 
-## Runing the server
+## Running the server
 
 ```sh
 $ npm run start
@@ -48,6 +48,8 @@ We actively welcome your pull requests.
 3. If you've changed APIs, update the documentation.
 4. Ensure the test suite passes.
 5. Make sure your code lints.
+6. PR's must be rebased before merge (feel free to ask for help)
+7. PR should be reviewed by two maintainers (@erquhart, @Benaiah, @tech4him1) prior to merging. 
 
 ## License
 

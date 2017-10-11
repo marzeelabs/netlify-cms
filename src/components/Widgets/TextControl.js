@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 
 export default class StringControl extends React.Component {
   componentDidMount() {
@@ -27,6 +28,6 @@ export default class StringControl extends React.Component {
 
 StringControl.propTypes = {
   onChange: PropTypes.func.isRequired,
-  forID: PropTypes.string.isRequired,
+  forID: PropTypes.string,
   value: PropTypes.node,
 };

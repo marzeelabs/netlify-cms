@@ -1,24 +1,26 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Button from 'react-toolbox/lib/button';
 import Authenticator from '../../lib/netlify-auth';
 import { Icon } from '../../components/UI';
+import { Notifs } from 'redux-notifications';
+import { Toast } from '../../components/UI/index';
 import styles from './AuthenticationPage.css';
 
 export default class AuthenticationPage extends React.Component {
   static propTypes = {
-    onLogin: React.PropTypes.func.isRequired,
+    onLogin: PropTypes.func.isRequired,
   };
 
   state = {};
 
   handleLogin = (e) => {
     e.preventDefault();
-    let auth;
-    if (document.location.host.split(':')[0] === 'localhost') {
-      auth = new Authenticator({ site_id: 'cms.netlify.com' });
-    } else {
-      auth = new Authenticator({ site_id: this.props.siteId });
-    }
+    const cfg = {
+      base_url: this.props.base_url,
+      site_id: (document.location.host.split(':')[0] === 'localhost') ? 'cms.netlify.com' : this.props.siteId
+    };
+    const auth = new Authenticator(cfg);
 
     auth.authenticate({ provider: 'github', scope: 'repo' }, (err, data) => {
       if (err) {
@@ -34,6 +36,7 @@ export default class AuthenticationPage extends React.Component {
 
     return (
       <section className={styles.root}>
+        <Notifs CustomComponent={Toast} />
         {loginError && <p>{loginError}</p>}
         <Button
           className={styles.button}

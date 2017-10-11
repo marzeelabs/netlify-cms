@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 import SplitPane from 'react-split-pane';
 import Button from 'react-toolbox/lib/button';
@@ -47,6 +48,9 @@ class EntryEditor extends Component {
         fieldsErrors,
         getAsset,
         onChange,
+        enableSave,
+        showDelete,
+        onDelete,
         onValidate,
         onAddAsset,
         onRemoveAsset,
@@ -127,6 +131,9 @@ class EntryEditor extends Component {
             isPersisting={entry.get('isPersisting')}
             onPersist={this.handleOnPersist}
             onCancelEdit={onCancelEdit}
+            onDelete={onDelete}
+            showDelete={showDelete}
+            enableSave={enableSave}
           />
         </div>
       </div>
@@ -145,6 +152,9 @@ EntryEditor.propTypes = {
   onChange: PropTypes.func.isRequired,
   onValidate: PropTypes.func.isRequired,
   onPersist: PropTypes.func.isRequired,
+  enableSave: PropTypes.bool.isRequired,
+  showDelete: PropTypes.bool.isRequired,
+  onDelete: PropTypes.func.isRequired,
   onRemoveAsset: PropTypes.func.isRequired,
   onCancelEdit: PropTypes.func.isRequired,
 };

@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 
 export default class SelectControl extends React.Component {
@@ -34,7 +35,7 @@ SelectControl.propTypes = {
   value: PropTypes.node,
   forID: PropTypes.string.isRequired,
   field: ImmutablePropTypes.contains({
-    options: ImmutablePropTypes.listOf(PropTypes.oneOf([
+    options: ImmutablePropTypes.listOf(PropTypes.oneOfType([
       PropTypes.string,
       ImmutablePropTypes.contains({
         label: PropTypes.string.isRequired,

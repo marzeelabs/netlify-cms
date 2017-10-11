@@ -1,13 +1,15 @@
 import AuthenticationPage from './AuthenticationPage';
 import { fileExtension } from '../../lib/pathHelper'
 
+window.repoFiles = window.repoFiles || {};
+
 function getFile(path) {
   const segments = path.split('/');
   let obj = window.repoFiles;
   while (obj && segments.length) {
     obj = obj[segments.shift()];
   }
-  return obj;
+  return obj || {};
 }
 
 function nameFromEmail(email) {
@@ -22,19 +24,22 @@ function nameFromEmail(email) {
 export default class TestRepo {
   constructor(config) {
     this.config = config;
-    if (window.repoFiles == null) {
-      throw 'The TestRepo backend needs a "window.repoFiles" object.';
-    }
   }
-
-  setUser() {}
 
   authComponent() {
     return AuthenticationPage;
   }
 
+  restoreUser(user) {
+    return this.authenticate(user);
+  }
+
   authenticate(state) {
     return Promise.resolve({ email: state.email, name: nameFromEmail(state.email) });
+  }
+
+  logout() {
+    return null;
   }
 
   getToken() {
@@ -84,6 +89,8 @@ export default class TestRepo {
     const newEntry = options.newEntry || false;
     const folder = entry.path.substring(0, entry.path.lastIndexOf('/'));
     const fileName = entry.path.substring(entry.path.lastIndexOf('/') + 1);
+    window.repoFiles[folder] = window.repoFiles[folder] || {};
+    window.repoFiles[folder][fileName] = window.repoFiles[folder][fileName] || {};
     if (newEntry) {
       window.repoFiles[folder][fileName] = { content: entry.raw };
     } else {
@@ -92,4 +99,10 @@ export default class TestRepo {
     return Promise.resolve();
   }
 
+  deleteFile(path, commitMessage) {
+    const folder = path.substring(0, path.lastIndexOf('/'));
+    const fileName = path.substring(path.lastIndexOf('/') + 1);
+    delete window.repoFiles[folder][fileName];
+    return Promise.resolve();
+  }
 }

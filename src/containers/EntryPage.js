@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ImmutablePropTypes from 'react-immutable-proptypes';
 import { connect } from 'react-redux';
 import history from '../routing/history';
@@ -10,8 +11,10 @@ import {
   changeDraftField,
   changeDraftFieldValidation,
   persistEntry,
+  deleteEntry,
 } from '../actions/entries';
 import { closeEntry } from '../actions/editor';
+import { deserializeValues } from '../lib/serializeEntryValues';
 import { addAsset, removeAsset } from '../actions/media';
 import { openSidebar } from '../actions/globalUI';
 import { selectEntry, getAsset } from '../reducers';
@@ -34,6 +37,8 @@ class EntryPage extends React.Component {
     entryDraft: ImmutablePropTypes.map.isRequired,
     loadEntry: PropTypes.func.isRequired,
     persistEntry: PropTypes.func.isRequired,
+    deleteEntry: PropTypes.func.isRequired,
+    showDelete: PropTypes.bool.isRequired,
     removeAsset: PropTypes.func.isRequired,
     closeEntry: PropTypes.func.isRequired,
     openSidebar: PropTypes.func.isRequired,
@@ -61,11 +66,19 @@ class EntryPage extends React.Component {
 
   componentWillReceiveProps(nextProps) {
     if (this.props.entry === nextProps.entry) return;
+    const { entry, newEntry, fields, collection } = nextProps;
 
-    if (nextProps.entry && !nextProps.entry.get('isFetching') && !nextProps.entry.get('error')) {
-      this.createDraft(nextProps.entry);
-    } else if (nextProps.newEntry) {
-      this.props.createEmptyDraft(nextProps.collection);
+    if (entry && !entry.get('isFetching') && !entry.get('error')) {
+
+      /**
+       * Deserialize entry values for widgets with registered serializers before
+       * creating the entry draft.
+       */
+      const values = deserializeValues(entry.get('data'), fields);
+      const deserializedEntry = entry.set('data', values);
+      this.createDraft(deserializedEntry);
+    } else if (newEntry) {
+      this.props.createEmptyDraft(collection);
     }
   }
 
@@ -79,15 +92,28 @@ class EntryPage extends React.Component {
   };
 
   handleCloseEntry = () => {
-    this.props.closeEntry();
+    return this.props.closeEntry();
   };
 
   handlePersistEntry = () => {
     const { persistEntry, collection } = this.props;
     setTimeout(() => {
-      persistEntry(collection);  
+      persistEntry(collection).then(() => this.handleCloseEntry());
     }, 0);
   };
+
+  handleDeleteEntry = () => {
+    if (!window.confirm('Are you sure you want to delete this entry?')) { return; }
+    if (this.props.newEntry) {
+      return this.handleCloseEntry();
+    }
+
+    const { deleteEntry, entry, collection } = this.props;
+    const slug = entry.get('slug');
+    setTimeout(() => {
+      deleteEntry(collection, slug).then(() => this.handleCloseEntry());
+    }, 0);
+  }
 
   render() {
     const {
@@ -124,6 +150,9 @@ class EntryPage extends React.Component {
         onAddAsset={addAsset}
         onRemoveAsset={removeAsset}
         onPersist={this.handlePersistEntry}
+        onDelete={this.handleDeleteEntry}
+        showDelete={this.props.showDelete}
+        enableSave={entryDraft.get('hasChanged')}
         onCancelEdit={this.handleCloseEntry}
       />
     );
@@ -162,6 +191,7 @@ export default connect(
     createEmptyDraft,
     discardDraft,
     persistEntry,
+    deleteEntry,
     closeEntry,
     openSidebar,
   }

@@ -1,10 +1,9 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ImmutablePropTypes from 'react-immutable-proptypes';
-import pluralize from 'pluralize';
 import { connect } from 'react-redux';
 import { IndexLink } from "react-router";
 import FontIcon from 'react-toolbox/lib/font_icon';
-import { Layout, Panel } from 'react-toolbox/lib/layout';
 import { Navigation } from 'react-toolbox/lib/navigation';
 import { Notifs } from 'redux-notifications';
 import TopBarProgress from 'react-topbar-progress-indicator';
@@ -89,6 +88,7 @@ class App extends React.Component {
             error: auth && auth.get('error'),
             isFetching: auth && auth.get('isFetching'),
             siteId: this.props.config.getIn(["backend", "site_domain"]),
+            base_url: this.props.config.getIn(["backend", "base_url"], null)
           })
         }
       </div>
@@ -156,7 +156,7 @@ class App extends React.Component {
                       className={sidebarStyles.viewEntriesLink}
                       onClick={e => this.handleLinkClick(e, navigateToCollection, collectionName)}
                     >
-                      {pluralize(collection.get('label'))}
+                      {collection.get('label')}
                     </a>
                     {
                       collection.get('create') ? (
@@ -180,7 +180,7 @@ class App extends React.Component {
 
     return (
       <Sidebar content={sidebarContent}>
-        <Layout>
+        <div>
           <Notifs CustomComponent={Toast} />
           <AppHeader
             user={user}
@@ -190,14 +190,13 @@ class App extends React.Component {
             onLogoutClick={logoutUser}
             toggleDrawer={toggleSidebar}
           />
-          <Panel scrollY className={styles.entriesPanel}>
+          <div className={styles.entriesPanel}>
             { isFetching && <TopBarProgress /> }
             <div>
               {children}
             </div>
-          </Panel>
-
-        </Layout>
+          </div>
+        </div>
       </Sidebar>
     );
   }
